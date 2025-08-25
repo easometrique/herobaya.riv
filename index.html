@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Baya Interactive Demo</title>
+  <style>
+    body{margin:0;background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh}
+    canvas{width:100%;max-width:1200px;height:auto;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.15)}
+  </style>
+</head>
+<body>
+  <canvas id="riveCanvas"></canvas>
+
+  <script src="https://unpkg.com/@rive-app/canvas@2.11.0"></script>
+  <script>
+    const RIV_FILE = 'baya_hero_project.riv';
+    const STATE_MACHINE = 'HeroMachine';
+    const INPUTS = {
+      birdTrack: 'Bird_Tracking',
+      btnHover: 'Button_Hover',
+      clickCTA: 'Click_CTA'
+    };
+
+    const canvas = document.getElementById('riveCanvas');
+    let app, inputs = {}, last = {x:0.5,y:0.5};
+
+    function sizeCanvas(){
+      const dpr=window.devicePixelRatio||1;
+      const cssW=canvas.clientWidth;
+      const cssH=cssW*0.66; // adjust ratio
+      canvas.style.height=cssH+'px';
+      canvas.width=Math.round(cssW*dpr);
+      canvas.height=Math.round(cssH*dpr);
+      if(app) app.resizeDrawingSurfaceToCanvas();
+    }
+
+    function clamp(v){return Math.max(0,Math.min(1,v));}
+    function norm(e){
+      const r=canvas.getBoundingClientRect();
+      const cx=(e.clientX||e.touches?.[0].clientX)-r.left;
+      const cy=(e.clientY||e.touches?.[0].clientY)-r.top;
+      return {x:clamp(cx/r.width), y:clamp(cy/r.height)};
+    }
+
+    function bindPointer(){
+      canvas.addEventListener('mousemove',e=>{
+        const p=norm(e); last=p;
+        if(inputs.birdTrack) inputs.birdTrack.value=p.x;
+      });
+      canvas.addEventListener('click',()=>{
+        if(inputs.clickCTA?.fire) inputs.clickCTA.fire();
+      });
+    }
+
+    function init(){
+      sizeCanvas(); window.addEventListener('resize',sizeCanvas);
+      app=new rive.Rive({
+        src:RIV_FILE, canvas, autoplay:true,
+        stateMachines: STATE_MACHINE,
+        fit: rive.Fit.CONTAIN,
+        alignment: rive.Alignment.center,
+        onLoad:()=>{
+          const list=app.stateMachineInputs(STATE_MACHINE);
+          inputs.birdTrack=list.find(i=>i.name===INPUTS.birdTrack);
+          inputs.btnHover =list.find(i=>i.name===INPUTS.btnHover);
+          inputs.clickCTA =list.find(i=>i.name===INPUTS.clickCTA);
+          bindPointer();
+        }
+      });
+    }
+    init();
+  </script>
+</body>
+</html>
