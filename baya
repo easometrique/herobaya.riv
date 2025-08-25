@@ -3,56 +3,107 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Baya Rive Demo (Responsive)</title>
+  <title>Baya Rive Demo</title>
   <style>
-    html,body{height:100%;margin:0;background:#f5f5f5;}
-    .wrap{max-width:1200px;margin:0 auto;padding:24px;}
-    canvas{width:100%;height:auto;display:block;box-shadow:0 20px 60px rgba(0,0,0,.08);border-radius:12px;background:#fff;}
+    :root { --bg:#f5f5f5; --card:#fff; --shadow:0 18px 60px rgba(0,0,0,.10); }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px}
+    .card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:16px}
+    canvas{width:100%;height:auto;display:block;border-radius:10px}
+    .controls{display:flex;gap:10px;margin-top:12px}
+    button{padding:8px 12px;border-radius:8px;border:0;background:#171717;color:#fff;cursor:pointer}
+    .note{margin-top:10px;font-size:12px;color:#555}
+    .error{margin-top:12px;padding:12px;border-radius:8px;background:#fff3f3;color:#a40000;border:1px solid #ffd2d2}
+    code{background:#eee;border-radius:4px;padding:2px 6px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <canvas id="riveCanvas"></canvas>
+    <div class="card">
+      <canvas id="riveCanvas"></canvas>
+      <div class="controls">
+        <button id="play">Play</button>
+        <button id="pause">Pause</button>
+      </div>
+      <div id="status" class="note">Loading…</div>
+      <div id="err" class="error" style="display:none"></div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/@rive-app/canvas@2.11.0"></script>
   <script>
+    // 👉 EDIT THIS if your file name is different (case-sensitive)
+    const RIV_FILE = 'baya_hero_project.riv';
+
+    // Optional: override via ?file=myfile.riv
+    const urlFile = new URLSearchParams(location.search).get('file');
+    const fileName = urlFile || RIV_FILE;
+
+    const statusEl = document.getElementById('status');
+    const errEl = document.getElementById('err');
     const canvas = document.getElementById('riveCanvas');
+    let app;
 
-    // desired logical size of the artboard (adjust if your scene is wider/taller)
-    let logicalW = 1200, logicalH = 800;
-
+    // Keep canvas sharp on Retina and responsive
     function sizeCanvas() {
-      // Make the canvas scale with DPR so it looks sharp
       const dpr = window.devicePixelRatio || 1;
       const cssW = canvas.clientWidth;
-      const ratio = logicalH / logicalW;
-      const cssH = cssW * ratio;
-
+      const aspect = 800 / 1200; // adjust if your scene isn't 3:2
+      const cssH = cssW * aspect;
       canvas.style.height = cssH + 'px';
       canvas.width  = Math.round(cssW * dpr);
       canvas.height = Math.round(cssH * dpr);
-
-      if (riveInstance) {
-        riveInstance.resizeDrawingSurfaceToCanvas();
-      }
+      if (app) app.resizeDrawingSurfaceToCanvas();
     }
 
-    let riveInstance;
-    const riveLoader = () => {
-      riveInstance = new rive.Rive({
-        src: 'baya_hero_project.riv',
-        canvas: canvas,
+    // Try common paths: root and /assets/
+    async function resolvePath(name) {
+      const candidates = [name, `assets/${name}`];
+      for (const p of candidates) {
+        try {
+          const res = await fetch(p, { method: 'HEAD', cache: 'no-store' });
+          if (res.ok) return p;
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function boot() {
+      sizeCanvas();
+      window.addEventListener('resize', sizeCanvas);
+
+      const path = await resolvePath(fileName);
+      if (!path) {
+        errEl.style.display = 'block';
+        errEl.innerHTML =
+          `Could not find <code>${fileName}</code> in repo root or <code>/assets/</code>.<br>
+           Place your .riv file next to <code>index.html</code> or in <code>/assets</code>, then refresh.<br>
+           Tested URLs:<br>
+           <code>${location.pathname.replace(/\/$/, '')}/${fileName}</code><br>
+           <code>${location.pathname.replace(/\/$/, '')}/assets/${fileName}</code>`;
+        statusEl.textContent = 'Missing file.';
+        return;
+      }
+
+      statusEl.textContent = `Loading ${path}…`;
+
+      app = new rive.Rive({
+        src: path,
+        canvas,
         autoplay: true,
+        // If your file uses a state machine, set its exact name:
+        // stateMachines: 'State Machine 1',
         onLoad: () => {
           sizeCanvas();
+          statusEl.textContent = 'Ready.';
         }
-        // , stateMachines: 'State Machine 1'
       });
-    };
 
-    riveLoader();
-    window.addEventListener('resize', sizeCanvas);
+      document.getElementById('play').onclick  = () => app && app.play();
+      document.getElementById('pause').onclick = () => app && app.pause();
+    }
+
+    boot();
   </script>
 </body>
 </html>
