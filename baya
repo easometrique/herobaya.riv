@@ -3,22 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Baya Rive Demo</title>
+  <title>Baya Rive Demo (Responsive)</title>
+  <style>
+    html,body{height:100%;margin:0;background:#f5f5f5;}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px;}
+    canvas{width:100%;height:auto;display:block;box-shadow:0 20px 60px rgba(0,0,0,.08);border-radius:12px;background:#fff;}
+  </style>
 </head>
-<body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;">
-  <canvas id="riveCanvas" width="800" height="600"></canvas>
+<body>
+  <div class="wrap">
+    <canvas id="riveCanvas"></canvas>
+  </div>
 
-  <!-- Rive Canvas runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@2.11.0"></script>
   <script>
-    // Make sure the .riv file name matches exactly (case-sensitive)
-    const r = new rive.Rive({
-      src: 'baya_hero_project.riv',
-      canvas: document.getElementById('riveCanvas'),
-      autoplay: true
-      // If your file uses a state machine, uncomment and set the name:
-      // , stateMachines: 'State Machine 1'
-    });
+    const canvas = document.getElementById('riveCanvas');
+
+    // desired logical size of the artboard (adjust if your scene is wider/taller)
+    let logicalW = 1200, logicalH = 800;
+
+    function sizeCanvas() {
+      // Make the canvas scale with DPR so it looks sharp
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth;
+      const ratio = logicalH / logicalW;
+      const cssH = cssW * ratio;
+
+      canvas.style.height = cssH + 'px';
+      canvas.width  = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+
+      if (riveInstance) {
+        riveInstance.resizeDrawingSurfaceToCanvas();
+      }
+    }
+
+    let riveInstance;
+    const riveLoader = () => {
+      riveInstance = new rive.Rive({
+        src: 'baya_hero_project.riv',
+        canvas: canvas,
+        autoplay: true,
+        onLoad: () => {
+          sizeCanvas();
+        }
+        // , stateMachines: 'State Machine 1'
+      });
+    };
+
+    riveLoader();
+    window.addEventListener('resize', sizeCanvas);
   </script>
 </body>
 </html>
