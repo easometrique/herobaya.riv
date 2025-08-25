@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Baya Rive Demo</title>
+</head>
+<body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f5f5;">
+  <canvas id="riveCanvas" width="800" height="600"></canvas>
+
+  <!-- Rive Canvas runtime -->
+  <script src="https://unpkg.com/@rive-app/canvas@2.11.0"></script>
+  <script>
+    // Make sure the .riv file name matches exactly (case-sensitive)
+    const r = new rive.Rive({
+      src: 'baya_hero_project.riv',
+      canvas: document.getElementById('riveCanvas'),
+      autoplay: true
+      // If your file uses a state machine, uncomment and set the name:
+      // , stateMachines: 'State Machine 1'
+    });
+  </script>
+</body>
+</html>
