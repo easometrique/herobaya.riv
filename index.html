@@ -1,75 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Baya Interactive Demo</title>
+  <title>Baya Rive — Diagnostics</title>
   <style>
-    body{margin:0;background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh}
-    canvas{width:100%;max-width:1200px;height:auto;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.15)}
+    :root { --bg:#f5f5f5; --ink:#111 }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,Inter,Arial,sans-serif;color:var(--ink)}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px}
+    .card{background:#fff;border-radius:14px;box-shadow:0 16px 50px rgba(0,0,0,.12);padding:12px}
+    canvas{width:100%;height:auto;display:block;border-radius:12px;background:#fff}
+    .status{position:fixed;left:12px;bottom:12px;background:#fff;border:1px solid #eee;padding:10px 12px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.12);max-width:90vw;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace}
+    .muted{color:#666}
+    .err{color:#b00020}
   </style>
 </head>
 <body>
-  <canvas id="riveCanvas"></canvas>
+  <div class="wrap">
+    <div class="card">
+      <canvas id="c"></canvas>
+    </div>
+  </div>
+
+  <div class="status" id="status">Starting…</div>
 
   <script src="https://unpkg.com/@rive-app/canvas@2.11.0"></script>
   <script>
-    const RIV_FILE = 'baya_hero_project.riv';
-    const STATE_MACHINE = 'HeroMachine';
-    const INPUTS = {
-      birdTrack: 'Bird_Tracking',
-      btnHover: 'Button_Hover',
-      clickCTA: 'Click_CTA'
+    // ---------- EDIT THESE IF NEEDED ----------
+    const RIV_URL = 'https://easometrique.github.io/herobaya.riv/baya_hero_project.riv?v=' + Date.now(); // cache-bust
+    const STATE_MACHINE = 'HeroMachine';      // from your file
+    const FALLBACK_ANIMS = ['Idle'];          // only used if SM missing
+    // -----------------------------------------
+
+    const statusEl = document.getElementById('status');
+    const canvas = document.getElementById('c');
+    let app;
+
+    const log = (msg, isErr=false) => {
+      statusEl.innerHTML = (isErr ? '<span class="err">' : '') + msg + (isErr ? '</span>' : '');
+      console.log('[Rive]', msg);
     };
 
-    const canvas = document.getElementById('riveCanvas');
-    let app, inputs = {}, last = {x:0.5,y:0.5};
-
-    function sizeCanvas(){
-      const dpr=window.devicePixelRatio||1;
-      const cssW=canvas.clientWidth;
-      const cssH=cssW*0.66; // adjust ratio
-      canvas.style.height=cssH+'px';
-      canvas.width=Math.round(cssW*dpr);
-      canvas.height=Math.round(cssH*dpr);
-      if(app) app.resizeDrawingSurfaceToCanvas();
+    function sizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 1200;
+      const cssH = cssW * (800/1200); // 1200x800 aspect; adjust if yours differs
+      canvas.style.height = cssH + 'px';
+      canvas.width  = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      if (app) app.resizeDrawingSurfaceToCanvas();
     }
 
-    function clamp(v){return Math.max(0,Math.min(1,v));}
-    function norm(e){
-      const r=canvas.getBoundingClientRect();
-      const cx=(e.clientX||e.touches?.[0].clientX)-r.left;
-      const cy=(e.clientY||e.touches?.[0].clientY)-r.top;
-      return {x:clamp(cx/r.width), y:clamp(cy/r.height)};
+    async function preflight(url) {
+      try {
+        const r = await fetch(url, { method:'HEAD', cache:'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        log('Asset OK: ' + url.replace(/\?.*$/,'') + ' (' + r.status + ')');
+        return true;
+      } catch (e) {
+        log('Failed to load .riv ('+ e.message +'). Check URL & filename.', true);
+        return false;
+      }
     }
 
-    function bindPointer(){
-      canvas.addEventListener('mousemove',e=>{
-        const p=norm(e); last=p;
-        if(inputs.birdTrack) inputs.birdTrack.value=p.x;
-      });
-      canvas.addEventListener('click',()=>{
-        if(inputs.clickCTA?.fire) inputs.clickCTA.fire();
-      });
-    }
-
-    function init(){
-      sizeCanvas(); window.addEventListener('resize',sizeCanvas);
-      app=new rive.Rive({
-        src:RIV_FILE, canvas, autoplay:true,
+    function tryInitWithStateMachine() {
+      log('Init with state machine: ' + STATE_MACHINE);
+      app = new rive.Rive({
+        src: RIV_URL,
+        canvas,
+        autoplay: true,
         stateMachines: STATE_MACHINE,
         fit: rive.Fit.CONTAIN,
         alignment: rive.Alignment.center,
-        onLoad:()=>{
-          const list=app.stateMachineInputs(STATE_MACHINE);
-          inputs.birdTrack=list.find(i=>i.name===INPUTS.birdTrack);
-          inputs.btnHover =list.find(i=>i.name===INPUTS.btnHover);
-          inputs.clickCTA =list.find(i=>i.name===INPUTS.clickCTA);
-          bindPointer();
+        onLoad: () => {
+          sizeCanvas();
+          const inputs = app.stateMachineInputs(STATE_MACHINE);
+          if (!inputs || !inputs.length) {
+            log('No inputs found for "'+STATE_MACHINE+'". Falling back to animation…');
+            app.cleanup();
+            setTimeout(tryInitWithAnimation, 50);
+            return;
+          }
+          log('Loaded SM "'+STATE_MACHINE+'". Inputs: ' + inputs.map(i=>i.name).join(', '));
         }
       });
     }
-    init();
+
+    function tryInitWithAnimation() {
+      log('Init with animation: ' + (FALLBACK_ANIMS.join(', ') || '(none)'));
+      app = new rive.Rive({
+        src: RIV_URL,
+        canvas,
+        autoplay: true,
+        animations: FALLBACK_ANIMS,
+        fit: rive.Fit.CONTAIN,
+        alignment: rive.Alignment.center,
+        onLoad: () => {
+          sizeCanvas();
+          log('Loaded animations: ' + FALLBACK_ANIMS.join(', '));
+        }
+      });
+    }
+
+    (async () => {
+      sizeCanvas();
+      window.addEventListener('resize', sizeCanvas);
+
+      // 1) Preflight the .riv URL
+      const ok = await preflight(RIV_URL);
+      if (!ok) return;
+
+      // 2) Try SM first, fallback to animation if needed
+      tryInitWithStateMachine();
+    })();
   </script>
 </body>
 </html>
