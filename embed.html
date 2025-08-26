@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Baya Embed</title>
+  <style>
+    /* Full-bleed container: no margins, no shadows, no borders */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: transparent; /* Behance/Genially background will show through */
+    }
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <canvas id="stage"></canvas>
+  </div>
+
+  <script src="https://unpkg.com/@rive-app/canvas@2.15.0"></script>
+  <script>
+    // --- Settings ---
+    const SRC          = 'baya_hero_project.riv';
+    const ARTBOARD     = 'Desktop - 1';
+    const STATE_MACHINE= 'HeroMachine';
+    const ART_W = 1440, ART_H = 1024;
+
+    // Fit mode via query: ?fit=cover or ?fit=contain (default)
+    const params = new URLSearchParams(location.search);
+    const fitMode = (params.get('fit') || 'contain').toLowerCase() === 'cover'
+      ? rive.Fit.COVER
+      : rive.Fit.CONTAIN;
+
+    const canvas = document.getElementById('stage');
+    let app;
+
+    function resizeCanvas() {
+      const dpr  = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      // Match the canvas pixel size to the CSS size * DPR
+      canvas.width  = Math.round(rect.width  * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      if (app) app.resizeDrawingSurfaceToCanvas();
+    }
+
+    function init() {
+      app = new rive.Rive({
+        src: SRC,
+        canvas,
+        artboard: ARTBOARD,
+        stateMachines: STATE_MACHINE,
+        autoplay: true,
+        fit: fitMode,                     // COVER or CONTAIN
+        alignment: rive.Alignment.center,
+        onLoad: () => {
+          resizeCanvas();
+        }
+      });
+
+      const ro = new ResizeObserver(() => resizeCanvas());
+      ro.observe(canvas);
+      window.addEventListener('resize', resizeCanvas);
+    }
+
+    init();
+  </script>
+</body>
+</html>
