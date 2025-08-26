@@ -1,164 +1,43 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>baya — interactive hero</title>
-  <style>
-    :root { --bg:#f5f5f5; }
-    html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,Inter,Arial,sans-serif}
-    .wrap{display:flex;justify-content:center;padding:32px}
-    .card{background:#fff;border-radius:14px;box-shadow:0 16px 50px rgba(0,0,0,.12);padding:12px}
-    /* Keep canvas responsive but honor your artboard aspect (1400×1024) */
-    canvas{display:block;width:min(1200px,94vw);height:auto;border-radius:12px;background:#fff}
-    /* Optional: show/hide a debug overlay around CTA target */
-    .debug-cta{position:absolute;inset:auto;pointer-events:none;border:1px dashed rgba(0,0,0,.25)}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card" style="position:relative">
-      <canvas id="stage"></canvas>
-      <!-- <div id="debug" class="debug-cta"></div> -->
-    </div>
-  </div>
+<script src="https://unpkg.com/@rive-app/canvas@2.15.0"></script>
+<script>
+const RIV_URL = "https://easometrique.github.io/herobaya.riv/baya_hero_project.riv?" + Date.now();
+const ARTBOARD = "Desktop - 1";
+const STATE_MACHINE = "HeroMachine";
+const ART_W = 1440, ART_H = 1024;  // your artboard size
 
-  <script src="https://unpkg.com/@rive-app/canvas@2.15.0"></script>
-  <script>
-    // ---------- CONFIG ----------
-    const RIV_URL  = 'https://easometrique.github.io/herobaya.riv/baya_hero_project.riv?v=' + Date.now();
-    const ARTBOARD = 'Desktop - 1';
-    const SM_NAME  = 'HeroMachine';
+const canvas = document.getElementById("riveCanvas");
 
-    // Your artboard size
-    const ART_W = 1400;
-    const ART_H = 1024;
-
-    // CTA rectangle in *artboard fractions* (tweak these if hover/click feels off)
-    // x/y: top-left as a fraction of width/height, w/h: size as fraction
-    const CTA_RECT = { x: 0.205, y: 0.546, w: 0.12, h: 0.06 };
-    // ----------------------------
-
-    const canvas = document.getElementById('stage');
-    const debugEl = document.getElementById('debug'); // optional overlay
-    let riveApp, inputs = {};
-    let hoverInside = false;
-
-    function sizeCanvas() {
-      const dpr  = window.devicePixelRatio || 1;
-      const cssW = canvas.clientWidth || 1200;
-      const cssH = Math.round(cssW * (ART_H / ART_W)); // 1024/1400
-      canvas.style.height = cssH + 'px';
-      canvas.width  = Math.round(cssW * dpr);
-      canvas.height = Math.round(cssH * dpr);
-      if (riveApp) riveApp.resizeDrawingSurfaceToCanvas();
-      // position debug rect if enabled
-      if (debugEl) {
-        const rect = canvas.getBoundingClientRect();
-        const left = rect.left + CTA_RECT.x * rect.width;
-        const top  = rect.top  + CTA_RECT.y * rect.height;
-        const w    = CTA_RECT.w * rect.width;
-        const h    = CTA_RECT.h * rect.height;
-        Object.assign(debugEl.style, {
-          left: `${left}px`, top: `${top}px`, width: `${w}px`, height: `${h}px`
-        });
+async function init() {
+  try {
+    const app = new rive.Rive({
+      src: RIV_URL,
+      canvas: canvas,
+      artboard: ARTBOARD,
+      stateMachines: STATE_MACHINE,
+      autoplay: true,
+      onLoad: () => {
+        console.log("Rive ready:", { ARTBOARD, STATE_MACHINE });
+        console.log("[SM inputs]", app.stateMachineInputs(STATE_MACHINE));
+        resizeCanvas(app);
       }
-    }
+    });
+    window.riveApp = app;
+  } catch (e) {
+    console.error("Rive init error:", e);
+  }
+}
 
-    function artCoordsFromEvent(e) {
-      const r = canvas.getBoundingClientRect();
-      const nx = (e.clientX - r.left) / r.width;   // 0..1 across canvas
-      const ny = (e.clientY - r.top)  / r.height;  // 0..1 down canvas
-      return { x: nx * ART_W, y: ny * ART_H };     // map into artboard units
-    }
+function resizeCanvas(app) {
+  const dpr = window.devicePixelRatio || 1;
+  const cssw = window.innerWidth;
+  const cssh = (ART_H / ART_W) * cssw; // scale with aspect ratio
+  canvas.width = Math.round(cssw * dpr);
+  canvas.height = Math.round(cssh * dpr);
+  canvas.style.width = cssw + "px";
+  canvas.style.height = cssh + "px";
+  if (app) app.resizeToDrawingSurface();
+}
 
-    function insideCTA(nx, ny) {
-      return nx >= CTA_RECT.x && nx <= CTA_RECT.x + CTA_RECT.w &&
-             ny >= CTA_RECT.y && ny <= CTA_RECT.y + CTA_RECT.h;
-    }
-
-    function bindPointer() {
-      canvas.addEventListener('mousemove', e => {
-        if (!riveApp) return;
-        const r = canvas.getBoundingClientRect();
-        const nx = (e.clientX - r.left) / r.width;   // 0..1
-        const ny = (e.clientY - r.top)  / r.height;  // 0..1
-        const art = { x: nx * ART_W, y: ny * ART_H };
-
-        // Map to your Bird_Tracking inputs adaptively
-        if (inputs.trackX && inputs.trackY) {
-          inputs.trackX.value = art.x;
-          inputs.trackY.value = art.y;
-        } else if (inputs.trackPair && inputs.trackPair.length === 2) {
-          inputs.trackPair[0].value = art.x;
-          inputs.trackPair[1].value = art.y;
-        }
-
-        // Hover state
-        const nowInside = insideCTA(nx, ny);
-        if (inputs.hover) {
-          if (nowInside !== hoverInside) {
-            inputs.hover.value = nowInside;
-            hoverInside = nowInside;
-          }
-        }
-      });
-
-      canvas.addEventListener('mouseleave', () => {
-        if (inputs.hover) inputs.hover.value = false;
-        hoverInside = false;
-      });
-
-      canvas.addEventListener('click', e => {
-        const r = canvas.getBoundingClientRect();
-        const nx = (e.clientX - r.left) / r.width;
-        const ny = (e.clientY - r.top)  / r.height;
-        if (insideCTA(nx, ny) && inputs.click) {
-          inputs.click.fire();
-          // Optional: window.open('https://your-signup-url', '_blank');
-        }
-      });
-    }
-
-    function captureInputs() {
-      const all = riveApp.stateMachineInputs(SM_NAME) || [];
-      // Flexible mapping for different modeling styles
-      inputs.click = all.find(i => i.name === 'Click_CTA' && i.type === rive.InputType.Trigger);
-      inputs.hover = all.find(i => i.name === 'Button_Hover' && i.type === rive.InputType.Boolean);
-
-      // Try Bird_Tracking_x / _y first
-      inputs.trackX = all.find(i => /Bird_Tracking.*x$/i.test(i.name) && i.type === rive.InputType.Number);
-      inputs.trackY = all.find(i => /Bird_Tracking.*y$/i.test(i.name) && i.type === rive.InputType.Number);
-
-      // If not found, fallback to “two numbers that start with Bird_Tracking”
-      if (!inputs.trackX || !inputs.trackY) {
-        const pair = all.filter(i => i.type === rive.InputType.Number && /^Bird_Tracking/i.test(i.name));
-        if (pair.length >= 2) inputs.trackPair = pair.slice(0,2);
-      }
-
-      console.log('[Rive inputs]', all.map(i => `${i.name} (${i.type})`));
-    }
-
-    // Init
-    (function start() {
-      riveApp = new rive.Rive({
-        src: RIV_URL,
-        canvas,
-        artboard: ARTBOARD,
-        stateMachines: SM_NAME,
-        autoplay: true,
-        fit: rive.Fit.CONTAIN,
-        alignment: rive.Alignment.center,
-        onLoad: () => {
-          sizeCanvas();
-          captureInputs();
-          bindPointer();
-        }
-      });
-
-      sizeCanvas();
-      window.addEventListener('resize', sizeCanvas);
-    })();
-  </script>
-</body>
-</html>
+init();
+window.addEventListener("resize", () => resizeCanvas(window.riveApp));
+</script>
