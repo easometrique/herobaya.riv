@@ -1,67 +1,81 @@
-<!-- Latest Rive runtime -->
-<script src="https://unpkg.com/@rive-app/canvas@2.15.0"></script>
-<script>
-  // Your hosted file (cache-busted)
-  const RIV_URL = 'https://easometrique.github.io/herobaya.riv/baya_hero_project.riv?v=' + Date.now();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Baya Rive — Render Finder</title>
+  <style>
+    :root { --bg:#f5f5f5; }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,Inter,Arial,sans-serif}
+    .wrap{display:flex;justify-content:center;padding:32px}
+    .card{background:#fff;border-radius:14px;box-shadow:0 16px 50px rgba(0,0,0,.12);padding:12px}
+    canvas{display:block;width:min(1200px,94vw);height:auto;border-radius:12px;background:#fff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <canvas id="stage"></canvas>
+    </div>
+  </div>
 
-  // We'll try these animations on both "no artboard" and "Desktop - 1"
-  const ANIMS = ['CTA_Button_Hover','CTA_Button_Click','Line','Up_Follow','Left_Follow','Idle'];
-  const ARTBOARDS = [null, 'Desktop - 1'];
+  <!-- Latest Rive runtime -->
+  <script src="https://unpkg.com/@rive-app/canvas@2.15.0"></script>
+  <script>
+    const RIV_URL = 'https://easometrique.github.io/herobaya.riv/baya_hero_project.riv?v=' + Date.now();
 
-  // Grab the canvas (id can be 'riveCanvas' or 'stage', whichever you have)
-  const canvas = document.getElementById('riveCanvas') || document.getElementById('stage');
+    // Animations from your file:
+    const ANIMS = ['CTA_Button_Hover','CTA_Button_Click','Line','Up_Follow','Left_Follow','Idle'];
+    // Try auto artboard first, then your artboard 'Desktop - 1'
+    const ARTBOARDS = [null, 'Desktop - 1'];
 
-  // Size helper so canvas actually has dimensions
-  function sizeCanvas(app) {
-    const dpr  = window.devicePixelRatio || 1;
-    const cssW = canvas.clientWidth || 1200;
-    const cssH = Math.round(cssW * (800/1200)); // adjust if your artboard ratio differs
-    canvas.style.height = cssH + 'px';
-    canvas.width  = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
-    if (app) app.resizeDrawingSurfaceToCanvas();
-  }
+    const canvas = document.getElementById('stage');
+    let app;
 
-  async function tryCombo(artboard, animName) {
-    return new Promise((resolve) => {
-      const app = new rive.Rive({
-        src: RIV_URL,
-        canvas,
-        artboard,                 // null = let Rive choose the default
-        animations: [animName],
-        autoplay: true,
-        fit: rive.Fit.CONTAIN,
-        alignment: rive.Alignment.center,
-        onLoad: () => {
-          sizeCanvas(app);
-          // Give it a moment to render, then resolve
-          setTimeout(() => resolve({ ok: true, app }), 450);
-        }
-      });
-    });
-  }
-
-  (async () => {
-    sizeCanvas(); window.addEventListener('resize', () => sizeCanvas());
-
-    // Try each animation on each artboard until we see something
-    for (const art of ARTBOARDS) {
-      for (const anim of ANIMS) {
-        try {
-          // Clean up previous attempt
-          if (window._riveApp && window._riveApp.cleanup) window._riveApp.cleanup();
-        } catch {}
-        console.log('Trying anim:', anim, 'on artboard:', art || '(auto)');
-
-        const { ok, app } = await tryCombo(art, anim);
-        window._riveApp = app;
-
-        // You’ll visually see it if it worked. If you do, stop here.
-        // Open the DevTools console to see which combo worked.
-        // If canvas is still blank, it continues with the next attempt.
-      }
+    function sizeCanvas(a) {
+      const dpr  = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 1200;
+      const cssH = Math.round(cssW * (800/1200)); // adjust if your artboard ratio differs
+      canvas.style.height = cssH + 'px';
+      canvas.width  = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      if (a) a.resizeDrawingSurfaceToCanvas();
     }
 
-    console.warn('No combo produced visible output. If you still see a blank canvas, check DevTools > Network (the .riv must be 200) and Console for errors.');
-  })();
-</script>
+    async function tryCombo(artboard, animName) {
+      return new Promise((resolve) => {
+        const a = new rive.Rive({
+          src: RIV_URL,
+          canvas,
+          artboard,                   // null = let Rive choose default
+          animations: [animName],
+          autoplay: true,
+          fit: rive.Fit.CONTAIN,
+          alignment: rive.Alignment.center,
+          onLoad: () => {
+            sizeCanvas(a);
+            setTimeout(() => resolve({ ok:true, app:a }), 400);
+          }
+        });
+      });
+    }
+
+    (async () => {
+      sizeCanvas(); window.addEventListener('resize', () => sizeCanvas());
+
+      for (const art of ARTBOARDS) {
+        for (const anim of ANIMS) {
+          try { if (app && app.cleanup) app.cleanup(); } catch {}
+          console.log('Trying anim:', anim, 'on artboard:', art || '(auto)');
+          const { ok, app: instance } = await tryCombo(art, anim);
+          app = instance;
+          // If you see the scene, stop here and note the console line.
+          // If it’s still blank, it will continue trying the next combo.
+        }
+      }
+
+      console.warn('If still blank: open DevTools → Network (reload) and confirm .riv is 200; then Console for any errors.');
+    })();
+  </script>
+</body>
+</html>
