@@ -22,6 +22,7 @@
     canvas {
       box-shadow: 0 10px 30px rgba(0,0,0,0.1);
       border-radius: 8px;
+      display: block;
     }
   </style>
 </head>
@@ -40,7 +41,7 @@
 
     const ART_W = 1440, ART_H = 1024;
 
-    const canvas = document.getElementById('stage') || document.getElementById('riveCanvas');
+    const canvas = document.getElementById('stage');
 
     if (!canvas) {
       console.error('Canvas element not found. Add <canvas id="stage"></canvas> to the HTML.');
@@ -49,9 +50,16 @@
 
       function resizeCanvas() {
         if (!canvas) return;
-        const dpr  = window.devicePixelRatio || 1;
-        const cssW = canvas.clientWidth || 1200;
-        const cssH = Math.round(cssW * (ART_H / ART_W));
+        const dpr = window.devicePixelRatio || 1;
+
+        // Keep ratio 1440 x 1024
+        let cssW = window.innerWidth * 0.9; // use 90% of viewport
+        let cssH = cssW * (ART_H / ART_W);
+
+        if (cssH > window.innerHeight * 0.9) {
+          cssH = window.innerHeight * 0.9;
+          cssW = cssH * (ART_W / ART_H);
+        }
 
         canvas.style.width  = cssW + 'px';
         canvas.style.height = cssH + 'px';
